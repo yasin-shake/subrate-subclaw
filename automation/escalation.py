@@ -108,6 +108,8 @@ def _extract_status(raw: str) -> dict:
     """Pull the agent's one-line JSON status out of its (possibly chatty) reply.
 
     `openclaw agent --json` returns {result: {payloads: [{text: ...}]}}.
+    The agent reply may be chatty prose followed by the status object, and the
+    object may contain nested braces (e.g. skill_patched sub-objects).
     """
     text = raw
     try:
@@ -118,15 +120,33 @@ def _extract_status(raw: str) -> dict:
             text = joined or str(outer.get("reply") or outer.get("text") or raw)
     except json.JSONDecodeError:
         pass
-    # Find the last {...} in the reply that looks like our status object.
+
+    # Scan for every '{' and try to parse a valid JSON object from that position
+    # forward, allowing nested braces.  Keep the last match that has "recovered".
     best: dict = {}
-    for m in re.finditer(r"\{[^{}]*\}", text):
+    for start in (i for i, ch in enumerate(text) if ch == "{"):
+        if '"recovered"' not in text[start:]:
+            break  # no more status objects possible
+        # Walk forward tracking brace depth to find the matching '}'.
+        depth = 0
+        end = start
+        for end, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+        if depth != 0:
+            continue
+        chunk = text[start: end + 1]
         try:
-            obj = json.loads(m.group(0))
+            obj = json.loads(chunk)
         except json.JSONDecodeError:
             continue
-        if "recovered" in obj:
+        if isinstance(obj, dict) and "recovered" in obj:
             best = obj
+
     if best:
         return best
     return {"recovered": False, "action": "agent replied without parseable status",

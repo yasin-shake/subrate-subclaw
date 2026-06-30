@@ -8,14 +8,16 @@
 
 1. Open Instagram (see `instagram-open.md`) and tap the Search tab `resource-id` `com.instagram.android:id/search_tab` (content-desc "Search and explore"); example center `756,2137`.
 2. Tap the search field `resource-id` `com.instagram.android:id/action_bar_search_edit_text`. Re-read; wait for `focused="true"`.
-3. Enter the query. **If the query has spaces** (most topics do), `input_text_direct` fails under Windows PowerShell (see `instagram-comment-post.md` for the `cmd /c` workaround). Two reliable options:
-   - Use the `cmd /c 'openclaw … --params "{\\\"x\\\":540,\\\"y\\\":146,\\\"text\\\":\\\"real estate uae\\\"}"'` form, OR
-   - If the term is in **Recent** searches, just tap that row: `resource-id` `row_search_keyword_title` whose `text` matches; example center of the row image/title.
-4. After the query is set, results render in tabs: `For you`, `Accounts`, `Audio`, `Tags`, `Places`, `Reels`. `For you` is selected by default and shows a thumbnail grid.
-5. Grid items are `resource-id` `grid_card_layout_container` (two per row) with content-desc like `"Reel by <Name> at row R, column C"` or `"Photo by <Name> …"`. Tap a card center to open it.
-6. Tapping a **Reel** card opens the full-screen Reels viewer (`clips_viewer_view_pager`) scoped to this search — its action bar title equals the query (e.g. `clips_viewer_action_bar_title` = "real estate uae"). From there you can page through results by swiping up. See `instagram-extract-reel-stats.md`.
+3. Enter the query via `input_text_direct`. Spaces are fine when invoked from Python with `shell=False` — no workaround needed.
+4. After typing, **two behaviors are observed depending on build**:
+   - **Suggestion row present**: a `resource-id` `com.instagram.android:id/row_search_keyword_title` row appears with the query text. Tap its center to commit the search.
+   - **Auto-commit (newer builds)**: results load immediately with no suggestion row. Do not wait for one; proceed directly to verifying the grid.
+5. After the query is committed, results render in tabs. **Current observed tabs**: `For you`, `Accounts`, `Audio`, `Tags`. (A dedicated `Reels` tab is not always present.) `For you` is selected by default and shows a mixed thumbnail grid.
+6. Grid items are `resource-id` `grid_card_layout_container` (two per row) with content-desc like `"Reel by <Name> at row R, column C"` or `"Photo by <Name> …"`. Tap a **Reel** card center to open the full-screen viewer.
+7. Tapping a **Reel** card opens the full-screen Reels viewer (`clips_viewer_view_pager`) scoped to this search — its action bar title equals the query or a related hashtag (e.g. `clips_viewer_action_bar_title` = "#realestateuae"). From there you can page through results by swiping up. See `instagram-extract-reel-stats.md`.
 
 ## Notes
 
-- The captured layout may also contain the (off-screen, negative-x bounds) home-feed panel from the ViewPager; ignore nodes whose bounds have negative x. The active results panel has normal `0..1080` x bounds.
-- Coordinates are examples on a 1080x2340 device; always derive from the latest layout.
+- **Do not require a keyword suggestion row.** If `row_search_keyword_title` is absent, check whether `grid_card_layout_container` or `row_search_user_container` elements are already visible with positive x bounds — if so, the search committed automatically.
+- The captured layout also contains the off-screen home-feed panel from the ViewPager (negative-x bounds). Ignore any node whose bounds have a negative x1. The active results panel has normal `0..1080` x bounds.
+- Coordinates are examples on a 1080×2340 device; always derive from the latest layout.

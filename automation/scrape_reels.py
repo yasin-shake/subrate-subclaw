@@ -70,6 +70,17 @@ class Scraper:
 
     def run_search(self):
         layout = self.client.get_layout()
+
+        # Idempotent: if recovery already put us in the reel viewer, we're done.
+        if find(layout, resource_id="com.instagram.android:id/clips_author_username"):
+            log("Already in reels viewer; skipping search.")
+            return
+
+        # Idempotent: results grid already on screen (query committed automatically).
+        if self._on_results_page(layout):
+            log("Search results already loaded.")
+            return
+
         # Make sure the search screen is up.
         tab = find(layout, content_desc_re=r"Search and explore")
         if tab and tab.center:
@@ -82,17 +93,25 @@ class Scraper:
         self.client.input_text_direct(*field.center, self.query)  # spaces ok via Python
         time.sleep(2.5)
 
-        # Tap the keyword suggestion matching the query to run the search.
+        # Some IG builds show a keyword-suggestion row that must be tapped to commit
+        # the search; newer builds auto-load results without it.  Tap only if present.
         layout = self.client.get_layout()
         kw = self._find_keyword_row(layout)
-        if not kw:
-            raise CheckpointError("search_suggestion",
-                                  f"no keyword suggestion row for '{self.query}'", layout)
-        self.client.click(*kw.center)
+        if kw:
+            self.client.click(*kw.center)
+            time.sleep(1.5)
+
         layout, _ = wait_for(self.client, "results_grid",
                              resource_id="com.instagram.android:id/grid_card_layout_container",
                              attempts=6)
         log("Search results grid loaded.")
+
+    def _on_results_page(self, layout: str) -> bool:
+        """True when the live keyword-search results page is already rendered."""
+        return (
+            find(layout, resource_id="com.instagram.android:id/grid_card_layout_container") is not None
+            or find(layout, resource_id="com.instagram.android:id/row_search_user_container") is not None
+        )
 
     def _find_keyword_row(self, layout: str):
         q = self.query.lower()
@@ -105,6 +124,12 @@ class Scraper:
 
     def open_first_reel(self):
         layout = self.client.get_layout()
+
+        # Idempotent: already in the reel viewer (e.g. recovery navigated here).
+        if find(layout, resource_id="com.instagram.android:id/clips_author_username"):
+            log("Reels viewer already open.")
+            return
+
         cards = find_all(layout, resource_id="com.instagram.android:id/grid_card_layout_container")
         target = next((c for c in cards if c.content_desc and c.content_desc.startswith("Reel")), None)
         target = target or (cards[0] if cards else None)
